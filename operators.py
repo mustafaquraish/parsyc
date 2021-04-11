@@ -1,10 +1,8 @@
-from parser import Parser, ParserResult
-from functor import Functor
+from parser import Parser, ParserResult, NotParsed
 
 ########################### Functors to wrap data ##############################
 
 Join = lambda *iter: "".join(iter)
-ToInt = int
 
 ########################### Basic parsers ######################################
 
@@ -17,15 +15,16 @@ def Times(psr, mn, mx=-1):
         count = 0
         res = ParserResult(inp, ()) 
         while True:
-            temp = psr.run(res.rest)
-            if not temp:
+            try:
+                temp = psr.run(res.rest)
+            except NotParsed:
                 if count >= mn:
                     return res
-                return ParserResult.reject()
+                break
             count += 1
-            if (mx is not None and count > mx):
+            if (mx and count > mx):
                 return res
-            res = ParserResult(temp.rest, res.ans + temp.ans)
+            res = ParserResult(temp.rest, res.val + temp.val)
     return run
 
 def Many(psr):      return Times(psr, 0, None)
@@ -35,58 +34,53 @@ def Optional(psr):  return Times(psr, 0, 1)
 
 @Parser
 def AnyChar(inp):
-    if len(inp)>0:
-        return ParserResult(inp[1:],(inp[0],))
-    return ParserResult.reject()
+    if len(inp)>0: 
+        return ParserResult(inp[1:], inp[0])
 
 def Char(char):
     @Parser
     def run(inp):
-        if len(inp)>0 and inp[0]==char:
-            return ParserResult(inp[1:],(inp[0],))
-        return ParserResult.reject()
+        if len(inp)>0 and inp[0]==char: 
+            return ParserResult(inp[1:], inp[0])
     return run
 
 def CharSatisfy(condition):
     @Parser
     def run(inp):
         if len(inp)>0 and condition(inp[0]):
-            return ParserResult(inp[1:],(inp[0],))
-        return ParserResult.reject()
+            return ParserResult(inp[1:],inp[0])
     return run
 
 @Parser
 def EOF(inp):
     if len(inp)==0:
         return ParserResult(inp,())
-    return ParserResult.reject()
 
 def String(strVal):
     @Parser
     def run(inp):
         if inp.startswith(strVal):
             return ParserResult(inp[len(strVal):], (strVal,))
-        return ParserResult.reject()
     return run
 
 Whitespace = String(" ") | String("\n") | String("\t")
-Whitespaces = Many(Whitespace)
+Whitespaces = Join % Many(Whitespace)
 
 Digit = CharSatisfy(str.isdigit)
-Integer = ToInt % ( Join % (Many(String("-")|String("+")) + Many(Digit) ))
+Integer = int % ( Join % (Optional(String("-") | String("+")) + Some(Digit)) )
 
 def Terminal(strVal): return String(strVal) + ~Whitespaces
 
 def Identifier(keywords):
     @Parser
     def run(inp):
-        idparser = Join [[ CharSatisfy(str.isalpha) + 
-                           Many(CharSatisfy(str.isalnum) | Char("_")) 
-                        ]]
+        idparser = Join % ( CharSatisfy(str.isalpha) / Char("_") + 
+                            Many(CharSatisfy(str.isalnum) | Char("_")) 
+                          )
+                        
         res = idparser.run(inp)
-        if not res or res.ans[0] in keywords:
-            return ParserResult.reject()
-        return res
+        if res.val[0] not in keywords:
+            return res
     return run
 
 def Between(begin, end, psr): 
@@ -95,17 +89,28 @@ def Between(begin, end, psr):
 def ChainL1(operator, operand):
     @Parser
     def run(inp):
-        res = operand.run(inp)
-        if not res: return ParserResult.reject()
-        
+        res = operand.run(inp)        
         def more(res):
-            op = operator.run(res.rest)
-            if not op: return res
-            b = operand.run(op.rest)
-            if not b: return res
+            try:
+                op = operator.run(res.rest)
+                b = operand.run(op.rest)
+                newRes = ParserResult(b.rest, op.get()(*res.val, *b.val))
+                return more(newRes)
+            except NotParsed:
+                return res
 
-            newRes = ParserResult(b.rest, (op.ans[0](*(res.ans + b.ans)),))
-            return more(newRes)
-        
         return more(res)
+    return run
+
+
+def ChainR1(operator, operand):
+    @Parser
+    def run(inp):
+        res = operand.run(inp)
+        def func(f, y):
+            return f(*(res.val), y)
+        try:
+            return (func % (operator + ChainR1(operator,operand))).run(res.rest)
+        except NotParsed:
+            return res
     return run

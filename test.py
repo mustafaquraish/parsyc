@@ -48,6 +48,14 @@ class TestBasicParsers(unittest.TestCase):
         self.assertIsNone(p.parse("Hell"))
         self.assertIsNone(p.parse("Hell0"))
 
+    def test_stringoneof(self):
+        p = StringOneOf("Hello", "Hi", "Goodbye")
+        self.check(p.parse("Hello"), "Hello")
+        self.check(p.parse("Hi"), "Hi")
+        self.check(p.parse("Goodbye"), "Goodbye")
+        self.assertIsNone(p.parse("Reject"))
+
+
     def test_whitespace(self):
         p = Whitespace
         self.check(p.parse(" "), " ")
@@ -94,6 +102,15 @@ class TestBasicParsers(unittest.TestCase):
         self.check(p.parse("+456"), 456)
         self.assertIsNone(p.parse("Hello"))
         self.assertIsNone(p.parse("---"))
+    
+    def test_regex(self):
+        p = Regex(r'[A-Za-z]+')
+        self.check(p.parse("abcABC"), "abcABC")
+        self.check(p.parse("ABC123"), "ABC")
+        self.assertIsNone(p.parse("123ABC"))
+        self.assertIsNone(p.parse("_abc"))
+
+        
 
 class TestCombinator(unittest.TestCase):
 
@@ -102,7 +119,7 @@ class TestCombinator(unittest.TestCase):
         self.assertEqual(res, expected)
 
     def test_times(self):
-        p = Times(Integer + ~Whitespaces, 3)
+        p = Times(Integer, 3)
         self.assertIsNotNone(p.parse("1 2 3 "))
         self.assertIsNotNone(p.parse("123 234 345"))
         self.assertIsNotNone(p.parse("123 234 3"))
@@ -110,7 +127,7 @@ class TestCombinator(unittest.TestCase):
         self.assertIsNone(p.parse("123"))
         self.assertIsNone(p.parse(""))
 
-        p = Times(Integer + ~Whitespaces, 6, 10)
+        p = Times(Integer, 6, 10)
         for i in range(20):
             s = "5 " * i
             if 6 <= i <= 10:
@@ -181,8 +198,39 @@ class TestCombinator(unittest.TestCase):
             def __eq__(self, other):
                 return self.vals == other.vals
 
-        p = Dummy % Times(Integer + ~Whitespaces, 3)
+        p = Dummy % Times(Integer, 3)
         self.check(p.parse("1 2 3"), Dummy(1, 2, 3))
+    
+    def test_many_combinations(self):
+        p = (
+            Optional(Char("+") | Char("-")) +
+            (
+                ( Optional(Some(Digit)) + Char(".") + Some(Digit) ) |
+                ( Some(Digit) + Optional(Char(".") + Many(Digit)) )
+            ) +
+            Optional(Char("e") + Some(Digit))
+        ) % Join % float
+        
+        self.check(p.parse("1"), 1)
+        self.check(p.parse("-1"), -1)
+        self.check(p.parse("+1"), +1)
+        self.check(p.parse("1.1"), 1.1)
+        self.check(p.parse("1."), 1.0)
+        self.check(p.parse(".1"), .1)
+        self.check(p.parse("-2.1"), -2.1)
+        self.check(p.parse("2.1e10"), 2.1e10)
+        self.check(p.parse("2.e7"), 2.e7)
+
+    def test_sep_by(self):
+        p = SepBy(Integer, ~Terminal(","))
+        self.check(p.parse("1,2,3,4"), (1,2,3,4))
+        self.check(p.parse("-1,2, 3"), (-1,2,3))
+        self.check(p.parse("1  ,  2,  3"), (1,2,3))
+
+    def test_many_until(self):
+        p = Join % (~String("/*") + ManyUntil(AnyChar, ~String("*/")))
+        self.check(p.parse("/*Comment*/"), "Comment")
+        self.check(p.parse("/*****Hello World!!!\n*/"), "****Hello World!!!\n")
 
 
 if __name__ == '__main__':

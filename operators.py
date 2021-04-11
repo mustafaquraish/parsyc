@@ -63,11 +63,19 @@ def String(strVal):
             return ParserResult(inp[len(strVal):], (strVal,))
     return run
 
+def StringOneOf(*strs):
+    p = String(strs[0])
+    for s in strs[1:]:
+        p = p | String(s)
+    return p
+
 Whitespace = String(" ") | String("\n") | String("\t")
 Whitespaces = Join % Many(Whitespace)
 
 Digit = CharSatisfy(str.isdigit)
-Integer = int % ( Join % (Optional(String("-") | String("+")) + Some(Digit)) )
+Integer = int % ( Join % (Optional(String("-") | String("+")) 
+                          + Some(Digit)
+                          + ~Whitespaces) )
 
 def Terminal(strVal): return String(strVal) + ~Whitespaces
 
@@ -81,6 +89,36 @@ def Identifier(keywords):
         res = idparser.run(inp)
         if res.val[0] not in keywords:
             return res
+    return run
+
+def SepBy(psr, sep):
+    return psr + Many(sep + psr)
+
+def ManyUntil(psr, end):
+    @Parser
+    def run(inp):
+        res = ParserResult(inp, ())
+        while True:
+            try:
+                temp = end.run(res.rest)
+                return ParserResult(temp.rest, res.val + temp.val)
+            except NotParsed:
+                pass
+            temp = psr.run(res.rest)
+            res = ParserResult(temp.rest, res.val + temp.val)
+
+    return run
+
+def Regex(rgx,group=0):
+    import re
+    compiled = re.compile(rgx)
+    if not isinstance(group, tuple):
+        group = (group,)
+    @Parser
+    def run(inp):
+        res = compiled.match(inp)
+        if res: 
+            return ParserResult(inp[res.end():], res.group(*group))
     return run
 
 def Between(begin, end, psr): 

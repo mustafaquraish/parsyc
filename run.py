@@ -3,13 +3,6 @@ from operators import *
 
 from util import curried
 
-class Hello:
-    def __init__(self, s1, s2):
-        self.s1 = s1
-        self.s2 = s2
-    
-    def __repr__(self):
-        return f"HelloObject[['{self.s1}','{self.s2}']]"
 
 @curried
 class Binop:
@@ -19,41 +12,66 @@ class Binop:
         self.b = b
 
     def __repr__(self):
-        return f"Binop[[{self.a} {self.op} {self.b}]]"
+        return f"({self.a} {self.op} {self.b})"
 
+    def eval(self):
+        a = self.a if isinstance(self.a, int) else self.a.eval()
+        b = self.b if isinstance(self.b, int) else self.b.eval()
+        return a+b if self.op=="+" else \
+               a-b if self.op=="-" else \
+               a/b if self.op=="/" else \
+               a*b if self.op=="*" else \
+               a%b if self.op=="%" else \
+               a^b if self.op=="^" else \
+               None
+
+def facorial(n):
+    from functools import reduce
+    return reduce(lambda a,b: a*b, range(1,n+1), 1)
 
 @curried
-class Movement:
-    def __init__(self, direction, distance):
-        self.dir = direction
-        self.dist = distance
+class Unop:
+    def __init__(self, op, a):
+        self.op = op
+        self.a = a
+
     def __repr__(self):
-        return f'{self.dir} -> {self.dist} steps'
+        if self.op != "!":
+            return f"({self.op}{self.a})"
+        else:
+            return f"({self.a}{self.op})"
 
-# # ps = String("HI")
-# ps = Hello [[ String("Hello") + ~Whitespaces + String("World") ]]
-# print(ps.run("Hello World"))
+    def eval(self):
+        a = self.a if isinstance(self.a, int) else self.a.eval()
+        return -a if self.op=="-" else \
+               ~a if self.op=="~" else \
+                facorial(a) if self.op=="!" else \
+                None
 
+ops_precedence = [
+    ("unary", Unop % Terminal("!"), "post"),
+    ("unary", Unop % (Terminal("-") | Terminal("~")), "pre"),
+    ("binary", Binop % Terminal("/"), "left"),
+    ("binary", Binop % Terminal("*"), "left"),
+    ("binary", Binop % Terminal("+"), "left"),
+    ("binary", Binop % Terminal("-"), "right"),
+    ("binary", Binop % Terminal("%"), "right"),
+    ("binary", Binop % Terminal("^"), "right"),
+]
 
-# p2 = Terminal("Hello") / Terminal("Hi") + Terminal("World")
-# print(p2.run("Hello World"))
+integer = int % (Some(Digit) + ~Whitespaces)
+atom = forward(lambda: integer | Between("(", ")", equation) )
+equation = BuildExpressionParser(atom, ops_precedence)
 
-Test = Binop % Times(Digit, 3)
-mulOp = Binop % (Char("*") | Char("+"))
-Addend = Binop % (Integer + Char("+") + Integer)
-# print(Addend.run("5+4"))
+res = equation.parse("5 + -4 / 3 / 2 * 2 - 1")
+print(res)          # --> ((5 + (((4 / 3) / 2) * 2)) - 1)
+print(res.eval())   # --> 5.333
 
-AAA = ChainL1(mulOp, Integer)
-BBB = ChainR1(mulOp, Integer)
-print(AAA.run("5*2+3*4"))
-print(BBB.run("5*2+3*4"))
+res = equation.parse("5!")
+print(res)          # --> ((5 + (((4 / 3) / 2) * 2)) - 1)
+print(res.eval())   # --> 5.333
 
-qq = mulOp
-# print(qq.run("*4"))
+res = equation.parse("5 + -4 / ~3 / 2 * 2 - 1")
+print(res)          # --> ((5 + (((4 / 3) / 2) * 2)) - 1)
+print(res.eval())   # --> 5.333
 
-p = String("Hi") | String("Hello")
-# print(p.run("Hello"))
-
-
-dirParser = Movement % (Terminal("Forward").to("F") / Terminal("Backward").to("B") + ~Whitespaces + Integer)
-print(dirParser.run("Forward 10"))

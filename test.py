@@ -184,12 +184,15 @@ class TestCombinator(unittest.TestCase):
         self.assertIsNone(p.parse("helloignore"))
 
     def test_functor(self):
-        Upper = lambda s: s.upper()
-        p = Upper % String("test")
+        p = str.upper % String("test")
         self.check(p.parse("test"), "TEST")
         self.assertIsNone(p.parse("TEST"))
 
-        p = Upper % (Join % (String("hello") + ~Whitespaces + String("world")))
+        p = str.upper % (Join @ (String("hello") + 
+                                 ~Whitespaces + 
+                                 String("world")
+                                )
+                        )
         self.check(p.parse("hello world"), "HELLOWORLD")
 
         class Dummy:
@@ -209,7 +212,7 @@ class TestCombinator(unittest.TestCase):
                 ( Some(Digit) + Optional(Char(".") + Many(Digit)) )
             ) +
             Optional(Char("e") + Some(Digit))
-        ) % Join % float
+        ) @ Join % float
         
         self.check(p.parse("1"), 1)
         self.check(p.parse("-1"), -1)
@@ -228,9 +231,19 @@ class TestCombinator(unittest.TestCase):
         self.check(p.parse("1  ,  2,  3"), (1,2,3))
 
     def test_many_until(self):
-        p = Join % (~String("/*") + ManyUntil(AnyChar, ~String("*/")))
+        p = Join @ (~String("/*") + ManyUntil(AnyChar, ~String("*/")))
         self.check(p.parse("/*Comment*/"), "Comment")
         self.check(p.parse("/*****Hello World!!!\n*/"), "****Hello World!!!\n")
+
+    def test_forward_declare(self):
+        def toStr(a,op,b): return f'[{a}`{op}`{b}]'
+
+        atom = forward(lambda: Integer | Between("(", ")", equation))
+        equation = toStr % (atom + Terminal("*") + atom)
+
+        self.check(equation.parse("(6*5)*(3*4)"), "[[6`*`5]`*`[3`*`4]]")
+        self.check(equation.parse("5*(3*4)"), "[5`*`[3`*`4]]")
+        self.check(equation.parse("(6*5)*3"), "[[6`*`5]`*`3]")
 
 
 if __name__ == '__main__':

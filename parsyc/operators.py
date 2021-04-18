@@ -1,8 +1,10 @@
-from parser import Parser, ParserResult, NotParsed
+from .parser import Parser, ParserResult, NotParsed
 
 ########################### Functors to wrap data ##############################
 
 Join = "".join
+Tuple = lambda iter: (iter,)
+Tuplify = lambda func: lambda *iter: func(iter)
 
 ########################### Basic parsers ######################################
 
@@ -73,8 +75,17 @@ Integer = int % ( Join @ (Optional(String("-") | String("+"))
                           + Some(Digit)
                           + ~Whitespaces) )
 
-def Terminal(strVal): return String(strVal) + ~Whitespaces
+Float = (Optional(Char("+") | Char("-")) +
+            (
+                ( Optional(Some(Digit)) + Char(".") + Some(Digit) ) |
+                ( Some(Digit) + Optional(Char(".") + Many(Digit)) )
+            ) +
+            Optional(Char("e") + Some(Digit)) +
+            ~Whitespaces
+        ) @ Join % float
 
+def Terminal(strVal): return String(strVal) + ~Whitespaces
+    
 def Identifier(keywords):
     @Parser
     def run(inp):
@@ -85,10 +96,10 @@ def Identifier(keywords):
         res = idparser.run(inp)
         if res.val[0] not in keywords:
             return res
-    return run
+    return run + ~Whitespaces
 
 def SepBy(psr, sep):
-    return psr + Many(sep + psr)
+    return psr + Many(sep + psr) + ~Whitespaces
 
 def ManyUntil(psr, end):
     @Parser
@@ -118,7 +129,14 @@ def Regex(rgx,group=0):
     return run
 
 def Between(begin, end, psr): 
-    return ~Terminal(begin) + psr + ~Whitespaces + ~Terminal(end)
+    return begin + ManyUntil(psr, end)
+
+def BetweenStr(begin, end, psr, ignoreEnds=True):
+    if ignoreEnds: 
+        return ~Terminal(begin) + psr + ~Whitespaces + ~Terminal(end)
+    else:
+        return Terminal(begin) + psr + ~Whitespaces + Terminal(end)
+
 
 def forward(fn):
     """
@@ -126,7 +144,7 @@ def forward(fn):
     defined later in the file. This is helpful for mutually recursive parsers!
     Example usage:
 
-        atom = forward(lambda: Integer | Between("(", ")", equation)))
+        atom = forward(lambda: Integer | BetweenStr("(", ")", equation)))
         equation = atom + Terminal("*") + atom
 
     """

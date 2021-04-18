@@ -14,12 +14,12 @@ jsEscChr = ~Char("\\") + (
     Char('t').to('\t') |
     Regex(r'u[0-9a-fA-F]{4}').map(lambda s: chr(int(s[1:], 16)))
 ) 
-jsString = "".join @ Between(~Char('"'), ~Char('"'), jsEscChr | AnyChar)
+jsString = "".join @ (~Char('"') + ManyUntil(jsEscChr | AnyChar, ~Char('"')))
 jsArray  = list @ forward(lambda:
-    BetweenStr("[", "]", SepBy(jsVal, ~Terminal(",")))
+    Between("[", "]", SepBy(jsVal, ~Terminal(",")))
 )
 jsObject = dict @ forward(lambda:
-    BetweenStr("{", "}", SepBy(Tuple @ (jsString + ~Terminal(":") + jsVal), 
+    Between("{", "}", SepBy(Tuple @ (jsString + ~Terminal(":") + jsVal), 
                             ~Terminal(",")
                             ))
 )

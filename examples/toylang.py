@@ -71,14 +71,14 @@ ops_precedence = [("binary",    Binop % Terminal("**"), "left"),
                   ("binary",    Binop % Terminal("%"), "right")]
 
 valueP = (Literal % Float) | (Variable % Identifier(KEYWORDS))
-atom = forward(lambda: valueP | BetweenStr("(", ")", exprP))
+atom = forward(lambda: valueP | Between("(", ")", exprP))
 exprP = BuildExpressionParser(atom, ops_precedence)
 blockP = forward(lambda: Block @ Many(statementP))
 statementP = (VarDefn % (Identifier(KEYWORDS) + ~Terminal("=") + exprP) |
               PrintStmt % (~Terminal("print") + exprP) |
               ForLoop % (~Terminal("for") + Identifier(KEYWORDS) + 
                           ~Terminal("=") + valueP + ~Terminal(":") + valueP +
-                          BetweenStr("{", "}", blockP)) | 
+                          Between("{", "}", blockP)) | 
               ~(Terminal("#") + ManyUntil(AnyChar, Char("\n"))+ Whitespaces))
 toylangP = ~Whitespaces + blockP + ~EOF
 

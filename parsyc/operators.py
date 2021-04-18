@@ -128,10 +128,7 @@ def Regex(rgx,group=0):
             return ParserResult(inp[res.end():], res.group(*group))
     return run
 
-def Between(begin, end, psr): 
-    return begin + ManyUntil(psr, end)
-
-def BetweenStr(begin, end, psr, ignoreEnds=True):
+def Between(begin, end, psr, ignoreEnds=True):
     if ignoreEnds: 
         return ~Terminal(begin) + psr + ~Whitespaces + ~Terminal(end)
     else:
@@ -144,7 +141,7 @@ def forward(fn):
     defined later in the file. This is helpful for mutually recursive parsers!
     Example usage:
 
-        atom = forward(lambda: Integer | BetweenStr("(", ")", equation)))
+        atom = forward(lambda: Integer | Between("(", ")", equation)))
         equation = atom + Terminal("*") + atom
 
     """

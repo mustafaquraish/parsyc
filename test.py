@@ -137,14 +137,14 @@ class TestCombinator(unittest.TestCase):
                 self.check(p.parse(s), (5,)*10)
     
     def test_between(self):
-        p = Between(~Terminal("("), ~Terminal(")"), Integer)
+        p = Between("(", ")", Integer)
         self.check(p.parse("(123)"), 123)
         self.check(p.parse("( 123 )    "), 123)
         self.assertIsNone(p.parse("{123}"))
         self.assertIsNone(p.parse("(123"))
         self.assertIsNone(p.parse("123)"))
 
-        p = Join @ Between(~Char("'"), ~Char("'"), AnyChar)
+        p = Join @ Between("'", "'", Regex(r"[^']*"))
         self.check(p.parse("'Hello'"), "Hello")
         self.check(p.parse("'Hi There'"), "Hi There")
         self.check(p.parse("'Hello'World'"), "Hello")
@@ -152,7 +152,7 @@ class TestCombinator(unittest.TestCase):
         self.assertIsNone(p.parse("'Hello"))
         self.assertIsNone(p.parse("Hello'"))
 
-        p = BetweenStr("{", "}", Identifier([]))
+        p = Between("{", "}", Identifier([]))
         self.check(p.parse("{hello}"), "hello")
         self.check(p.parse("{ hELLO  } "), "hELLO")
         self.assertIsNone(p.parse("(hello)"))
@@ -244,7 +244,7 @@ class TestCombinator(unittest.TestCase):
     def test_forward_declare(self):
         def toStr(a,op,b): return f'[{a}`{op}`{b}]'
 
-        atom = forward(lambda: Integer | BetweenStr("(", ")", equation))
+        atom = forward(lambda: Integer | Between("(", ")", equation))
         equation = toStr % (atom + Terminal("*") + atom)
 
         self.check(equation.parse("(6*5)*(3*4)"), "[[6`*`5]`*`[3`*`4]]")
